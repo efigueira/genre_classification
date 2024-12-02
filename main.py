@@ -1,11 +1,11 @@
 import mlflow
 import os
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, ListConfig
 
 
 # This automatically reads in the configuration
-@hydra.main(config_name='config')
+@hydra.main(config_name="config", config_path=".", version_base="1.3.2")
 def go(config: DictConfig):
 
     # Setup the wandb experiment. All runs will be grouped under this name
@@ -20,8 +20,9 @@ def go(config: DictConfig):
         # This was passed on the command line as a comma-separated list of steps
         steps_to_execute = config["main"]["execute_steps"].split(",")
     else:
-        assert isinstance(config["main"]["execute_steps"], list)
-        steps_to_execute = config["main"]["execute_steps"]
+        # config["main"]["execute_steps"] es del tipo ListConfig no list
+        assert isinstance(config["main"]["execute_steps"], (list, ListConfig))
+        steps_to_execute = list(config["main"]["execute_steps"])
 
     # Download step
     if "download" in steps_to_execute:
@@ -45,9 +46,9 @@ def go(config: DictConfig):
             "main",
             parameters={
                 # El input es la salida del download
-                "input_artifact": "raw_data.parquet",
-                "artifact_name": "processed_data.csv",
-                "artifact_type": "processed_data",
+                "input_artifact": "raw_data.parquet:latest",
+                "artifact_name": "preprocessed_data.csv",
+                "artifact_type": "preprocessed_data",
                 "artifact_description": "Data with preprocessing applied"
             },
         )
@@ -58,10 +59,9 @@ def go(config: DictConfig):
             os.path.join(root_path, "check_data"),
             "main",
             parameters={
-                # config.yaml
+                # El input está definido en config.yaml
                 "reference_artifact": config["data"]["reference_dataset"],
-                # El input es la salida del download
-                "sample_artifact": "processed_data.csv:latest",
+                "sample_artifact": "preprocessed_data.csv:latest",
                 # config.yaml
                 "ks_alpha": config["data"]["ks_alpha"],
             },
@@ -81,7 +81,6 @@ def go(config: DictConfig):
                 "artifact_type": "segregated_data",
                 # config.yaml
                 "test_size": config["data"]["test_size"],
-                "random_state": config["data"]["random_state"],
                 "stratify": config["data"]["stratify"],
             },
         )
